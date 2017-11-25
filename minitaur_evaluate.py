@@ -41,14 +41,20 @@ def evaluate_desired_motorAngle_8Amplitude8Phase(i, params):
 def evaluate_desired_motorAngle_2Amplitude4Phase(i, params):
   speed = 0.35
   phaseDiff = params[2]
+  
+  # leg 0 
   a0 = math.sin(i * speed) * params[0] + halfpi
   a1 = math.sin(i * speed + phaseDiff) * params[1] + halfpi
+  # leg 1
   a2 = math.sin(i * speed + params[3]) * params[0] +  halfpi
   a3 = math.sin(i * speed + params[3] + phaseDiff) * params[1] +  halfpi
+  # leg 2
   a4 = math.sin(i * speed + params[4] + phaseDiff) * params[1] +  halfpi
   a5 = math.sin(i * speed + params[4]) * params[0] +  halfpi
+  # leg 3
   a6 = math.sin(i * speed + params[5] + phaseDiff) * params[1] +  halfpi
   a7 = math.sin(i * speed + params[5]) * params[0] +  halfpi
+
   joint_values = [a0, a1, a2, a3, a4, a5, a6, a7]
   return joint_values
 

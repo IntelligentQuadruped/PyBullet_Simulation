@@ -1,4 +1,5 @@
 import sys
+from parameters import Parameter
 #some python interpreters need '.' added
 sys.path.append(".")
 
@@ -16,7 +17,7 @@ def main(unused_args):
   if (c<0):
       c = p.connect(p.GUI)
 
-  params = [0.1903581461951056, 0.0006732219568880068, 0.05018085615283363, 3.219916795483583, 6.2406418167980595, 4.189869754607539]
+  params = Parameter
   # for i in params:
   # 	print(math.degrees(i))
 
