@@ -71,9 +71,28 @@ evaluate_func_map['evaluate_desired_motorAngle_hop'] = evaluate_desired_motorAng
 #########---------------START Obstacle Avoidance----------########
 
 def find_largest_gap(collisions):
-  gaps = (list(i) for (val,i) in itertools.groupby((enumerate(collisions)),operator.itemgetter(1)) if val == -1)
-  max_gap = max(gaps, key=len)
-  return math.floor((max_gap[-1][0]-max_gap[0][0])/2)
+  lmax = 0
+  f = 0
+  lcurr = 0
+  past = False
+  for i, val in enumerate(collisions):
+    if (val == -1):
+      if (past ==False):
+        lcurr = 1
+        past = True
+      else:
+        lcurr = lcurr + 1
+    else:
+      if(past == True):
+        past = False
+        if (lmax < lcurr):
+          lmax = lcurr
+          f = i - 1
+        lcurr =0
+  if(past == True and lmax < lcurr):
+    lmax = lcurr
+    f = i - 1
+  return int(f - lmax/2)
 
 
 #########---------------END Obstacle Avoidance----------########
