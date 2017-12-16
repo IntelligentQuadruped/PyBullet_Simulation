@@ -7,7 +7,6 @@ os.sys.path.insert(0,parentdir)
 
 import pybullet as p
 import pybullet_data
-
 import time
 
 
@@ -17,40 +16,43 @@ import time
 
 import math
 import numpy as np
-import itertools
-import operator
+import random
+
 
 def find_largest_gap(collisions):
-	lmax = 0
-	f = 0
-	lcurr = 0
-	past = False
-	for i, val in enumerate(collisions):
-		if (val == -1):
-			if (past ==False):
-				lcurr = 1
-				past = True
-			else:
-				lcurr = lcurr + 1
-		else:
-			if(past == True):
-				past = False
-				if (lmax < lcurr):
-					lmax = lcurr
-					f = i - 1
-				lcurr =0
-	if(past == True and lmax < lcurr):
-		lmax = lcurr
-		f = i - 1
-	return int(f - lmax/2)
+	c = np.asarray(collisions) < 0 # true where gap exists
+	d = np.insert(np.append(c, [False]), 0, False) #inserts false beggining/end
+	f = np.nonzero(np.diff(d))[0] #finds start/finish indices of gaps
+	g = f[1::2] - f[0::2] #gap sizes
+
+	if g.size == 0:
+		return None
+
+	i = np.argmax(g) #largest gap
+	l = g[i] #length
+	s = f[2*i] #start index
+
+	return int(s + l/2)
 
 
 
-
-  # gaps = (list(i) for (val,i) in itertools.groupby((enumerate(collisions)),operator.itemgetter(1)) if val == -1)
-  # max_gap = max(gaps, key=len)
-  # return math.floor((max_gap[-1][0]-max_gap[0][0])/2)
 #########---------------END Obstacle Avoidance----------########
+
+
+
+#########---------------START Random Obstacles----------########
+
+
+
+def random_environment(blocks, r):
+	for i in range(blocks):
+		rand = list(range(-r,0)) + list(range(1, r))
+		randlist = [random.choice(rand), random.choice(rand),0]
+		p.createMultiBody (0,cube, baseOrientation=orn, basePosition=randlist)
+
+
+
+#########---------------END Random Obstacles----------########
 
 
 
@@ -68,9 +70,10 @@ useRealTimeSim = 1
 cube =p.createCollisionShape(p.GEOM_MESH,fileName="cube.obj",flags=p.GEOM_FORCE_CONCAVE_TRIMESH, meshScale=[1,1,1])
 orn = p.getQuaternionFromEuler([0,0,0])
 print(orn)
-p.createMultiBody (0,cube, baseOrientation=orn, basePosition=[-1,1,0])
-p.createMultiBody (0,cube, baseOrientation=orn, basePosition=[-2,2,0])
-p.createMultiBody (0,cube, baseOrientation=orn, basePosition=[-1,-1,0])
+
+
+
+random_environment(20, 3)
 
 
 
@@ -105,7 +108,7 @@ while (True):
 #########---------------START Obstacle Avoidance----------########
 
 
-	ray_length = 0.3
+	ray_length = 1
 	angle_swept = 130
 	step = math.ceil(100*angle_swept/p.MAX_RAY_INTERSECTION_BATCH_SIZE)/100
 	angles = np.arange(-angle_swept/2, angle_swept/2, step) * np.pi / 180 #angle of rotations
@@ -132,15 +135,21 @@ while (True):
 
 	b = [int(i[0]) for i in rays_info]
 	nth_ray = find_largest_gap(b)
-	deg = angles[nth_ray]*180/np.pi
-	print("Rotate {:.1f} degrees".format(deg))
+
+
+	if(nth_ray == None):
+		targetVelocity = 0
+	else:
+		deg = angles[nth_ray]*180/np.pi
+		print("Rotate {:.1f} degrees".format(deg))
+		if math.fabs(deg)  > 5:
+			steeringAngle = np.sign(deg)*1
 
 
 #########---------------END Obstacle Avoidance----------########
 
 
-	if math.fabs(deg)  > 5:
-		steeringAngle = np.sign(deg)*1
+	
 
 	
 	for wheel in wheels:
