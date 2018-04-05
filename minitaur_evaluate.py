@@ -70,29 +70,70 @@ evaluate_func_map['evaluate_desired_motorAngle_hop'] = evaluate_desired_motorAng
 
 #########---------------START Obstacle Avoidance----------########
 
-def find_largest_gap(collisions):
-  lmax = 0
-  f = 0
-  lcurr = 0
-  past = False
-  for i, val in enumerate(collisions):
-    if (val == -1):
-      if (past ==False):
-        lcurr = 1
-        past = True
-      else:
-        lcurr = lcurr + 1
+class __Data:
+
+  def __init__(self, row_i, start_i, end_i, n):
+    self.row_i = row_i
+    self.start_i = start_i
+    self.end_i = end_i
+    self.n = n
+    self.gap = None
+
+  def compareGap(self, s, f):
+
+    g = self.gap
+    if g is not None:
+      return g[1]-g[0] < f-s
     else:
-      if(past == True):
-        past = False
-        if (lmax < lcurr):
-          lmax = lcurr
-          f = i - 1
-        lcurr =0
-  if(past == True and lmax < lcurr):
-    lmax = lcurr
-    f = i - 1
-  return int(f - lmax/2)
+      return True
+
+  def setGap(self, s, f):
+
+    g = self.gap
+    if g is None:
+      self.gap = (s, f)
+    else:
+      if f-s > g[1]-g[0]:
+        self.gap = (s, f)
+
+
+def __addNextRow(row, start, finish, data):
+
+  if row == data.n:
+    data.setGap(start, finish)
+    return
+  args = np.argwhere(data.row_i == row)
+  for i in args:
+    s = start
+    f = finish
+    c = data.start_i[i][0]
+    d = data.end_i[i][0]
+    if s < d and f > c:
+      if s < c:
+        s = c
+      if f > d:
+        f = d
+      if data.compareGap(s, f):
+        __addNextRow(row+1, s, f, data)
+    return
+
+ 
+def find_largest_gap(collisions):
+  depth =  collisions < 0 # true where gap exists
+  npad = ((0, 0), (1, 1))
+  d = np.pad(depth, pad_width=npad, mode='constant', constant_values=0)
+
+  f = np.nonzero(np.diff(d))
+  r = f[0][0::2] # row indices
+  data = __Data(r, f[1][0::2], f[1][1::2], len(np.unique(r)))
+
+  __addNextRow(0, 0, np.inf, data)
+
+  sf = data.gap
+  if sf is None:
+    return None
+
+  return int((sf[0]+sf[1])/2)
 
 
 #########---------------END Obstacle Avoidance----------########
@@ -159,15 +200,27 @@ def evaluate_params(evaluateFunc, params, objectiveParams, urdfRoot='', timeStep
     rays_end = (rays_end + src[:, None]).T
     rays_info = p.rayTestBatch(rays_src.tolist(), rays_end.tolist())
 
-    b = [int(i[0]) for i in rays_info]
+    h = 10
+
+    b = np.asarray([int(i[0]) for i in rays_info])
+
+    for i in range(h-1):
+      rays = np.concatenate(([ray_length*np.sin(angles)], [ray_length*np.cos(angles)], [np.full((num_angles,), i+1)]), axis=0)
+
+      rays_end = np.matmul(orn, rays) # unit vector in direction of minitaur
+      rays_end = (rays_end + src[:, None]).T
+
+      rays_info = p.rayTestBatch(rays_src.tolist(), rays_end.tolist())
+
+      b = np.vstack((b, np.asarray([int(i[0]) for i in rays_info])))
+
     nth_ray = find_largest_gap(b)
-    print("Rotate {:.1f}degrees".format(angles[nth_ray]*180/np.pi))
+
+    deg = 1.*angle_swept*nth_ray/b.shape[1] - angle_swept/2.
+    print("Rotate {:.1f}degrees".format(deg))
 
 
 #########---------------END Obstacle Avoidance----------########
-
-
-
 
 
     torques = minitaur.getMotorTorques()
@@ -180,9 +233,6 @@ def evaluate_params(evaluateFunc, params, objectiveParams, urdfRoot='', timeStep
     p.stepSimulation()
     if (is_fallen()):
       break
-
-
-
 
 
     if i % 100 == 0:
