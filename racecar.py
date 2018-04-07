@@ -143,7 +143,7 @@ with open('rc_output.csv', 'w+') as f:
 
 		useRealTimeSim = False
 
-		cube =p.createCollisionShape(p.GEOM_MESH,fileName="cube.obj",flags=p.GEOM_FORCE_CONCAVE_TRIMESH, meshScale=[1,1,1])
+		cube =p.createCollisionShape(p.GEOM_MESH,fileName=os.path.join(pybullet_data.getDataPath(),"cube.onj"),flags=p.GEOM_FORCE_CONCAVE_TRIMESH, meshScale=[1,1,1])
 		orn = p.getQuaternionFromEuler([0,0,0])
 
 		radius = 10
@@ -232,14 +232,14 @@ with open('rc_output.csv', 'w+') as f:
 			if(nth_ray == None):
 				nowhere = True
 				targetVelocity = 0
-				print("Nowhere")
+				# print("Nowhere")
 				nowhere_count += 1
 				if nowhere_count > 20:
 					break
 			else:
 				nowhere_count = 0
 				deg = 1.*angle_swept*nth_ray/b.shape[1] - angle_swept/2.
-				print("Rotate {:.1f} degrees".format(deg))
+				# print("Rotate {:.1f} degrees".format(deg))
 				if math.fabs(deg)  > 5:
 					targetVelocity = -4
 					steeringAngle = np.sign(deg)*.7
