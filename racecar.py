@@ -143,7 +143,7 @@ with open('rc_output.csv', 'w+') as f:
 
 		useRealTimeSim = False
 
-		cube =p.createCollisionShape(p.GEOM_MESH,fileName=os.path.join(pybullet_data.getDataPath(),"cube.onj"),flags=p.GEOM_FORCE_CONCAVE_TRIMESH, meshScale=[1,1,1])
+		cube =p.createCollisionShape(p.GEOM_MESH,fileName=os.path.join(pybullet_data.getDataPath(),"cube.obj"),flags=p.GEOM_FORCE_CONCAVE_TRIMESH, meshScale=[1,1,1])
 		orn = p.getQuaternionFromEuler([0,0,0])
 
 		radius = 10
