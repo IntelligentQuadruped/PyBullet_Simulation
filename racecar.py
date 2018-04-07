@@ -155,8 +155,8 @@ with open('rc_output.csv', 'w+') as f:
 		p.loadURDF(os.path.join(pybullet_data.getDataPath(),"plane.urdf"))
 
 		car = p.loadURDF(os.path.join(pybullet_data.getDataPath(),"racecar/racecar.urdf"))
-		for i in range (p.getNumJoints(car)):
-			print (p.getJointInfo(car,i))
+		# for i in range (p.getNumJoints(car)):
+		# 	print (p.getJointInfo(car,i))
 
 		inactive_wheels = [5,7]
 		wheels = [2,3]
