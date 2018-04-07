@@ -8,13 +8,36 @@ os.sys.path.insert(0,parentdir)
 import pybullet as p
 import pybullet_data
 import time
-
+import csv
 
 #########---------------START Obstacle Avoidance----------########
 
 import math
 import numpy as np
 import random
+import matplotlib.pyplot as plt
+
+class __Path:
+	def __init__(self):
+		self.len = 0
+		self.curr = None
+		self.rad = 0
+
+
+	def calcDist(self, pos):
+		if self.curr is not None:
+			prev = self.curr
+			self.curr = pos
+			dist = np.linalg.norm(pos-prev)
+			self.len = self.len + dist
+			self.rad = np.linalg.norm(pos-self.start)
+		else:
+			self.start = pos
+			self.curr = pos
+
+
+
+
 
 class __Data:
 
@@ -95,139 +118,156 @@ def random_environment(blocks, r):
 	
 	for i in range(blocks):
 		randlist = [r1[i], r2[i],0]
-		if all(i == 0 for i in randlist):
+		if all(abs(i) < 2 for i in randlist):
 			continue
 		p.createMultiBody(0,cube, baseOrientation=orn, basePosition=randlist)
 
 #########---------------END Random Obstacles----------########
 
+with open('rc_output.csv', 'w+') as f:
+	writer = csv.writer(f, quoting=csv.QUOTE_NONNUMERIC)
+	writer.writerow( ('Distance Travelled', 'Radial DIstance', 'Deadend', 'Blocks', 'Radius') )
 
-cid = p.connect(p.SHARED_MEMORY)
-print(cid)
-if (cid<0):
-	# p.connect(p.GUI)
-	p.connect(p.DIRECT)
+	while True:
 
-p.setPhysicsEngineParameter(numSolverIterations=5)
-p.setPhysicsEngineParameter(fixedTimeStep=1./10.)
-p.setPhysicsEngineParameter(numSubSteps=1)
-	
-p.resetSimulation()
-p.setGravity(0,0,-10)
+		cid = p.connect(p.SHARED_MEMORY)
+		if (cid<0):
+			# p.connect(p.GUI)
+			p.connect(p.DIRECT)
 
-useRealTimeSim = False
+		p.setPhysicsEngineParameter(numSolverIterations=5, fixedTimeStep=1., 
+									numSubSteps=50)
+			
+		p.resetSimulation()
+		p.setGravity(0,0,-10)
 
-cube =p.createCollisionShape(p.GEOM_MESH,fileName="cube.obj",flags=p.GEOM_FORCE_CONCAVE_TRIMESH, meshScale=[1,1,1])
-orn = p.getQuaternionFromEuler([0,0,0])
+		useRealTimeSim = False
 
-random_environment(30, 5)
+		cube =p.createCollisionShape(p.GEOM_MESH,fileName="cube.obj",flags=p.GEOM_FORCE_CONCAVE_TRIMESH, meshScale=[1,1,1])
+		orn = p.getQuaternionFromEuler([0,0,0])
 
-
-#for video recording (works best on Mac and Linux, not well on Windows)
-#p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, "racecar.mp4")
-
-p.setRealTimeSimulation(useRealTimeSim) # either this
-p.loadURDF(os.path.join(pybullet_data.getDataPath(),"plane.urdf"))
-
-car = p.loadURDF(os.path.join(pybullet_data.getDataPath(),"racecar/racecar.urdf"))
-for i in range (p.getNumJoints(car)):
-	print (p.getJointInfo(car,i))
-
-inactive_wheels = [5,7]
-wheels = [2,3]
-
-for wheel in inactive_wheels:
-		p.setJointMotorControl2(car,wheel,p.VELOCITY_CONTROL,targetVelocity=0,force=0)
-	
-steering = [4,6]
-
-targetVelocitySlider = p.addUserDebugParameter("wheelVelocity",-10,10,0)
-maxForceSlider = p.addUserDebugParameter("maxForce",0,10,10)
-steeringSlider = p.addUserDebugParameter("steering",-0.5,0.5,0)
-
-ray_length = 2
-angle_swept = 60
-step = math.ceil(100*angle_swept/p.MAX_RAY_INTERSECTION_BATCH_SIZE)/100
-angles = np.arange(-angle_swept/2, angle_swept/2, step) * np.pi / 180 #angle of rotations
-num_rays = np.shape(angles)[0]
-rays = np.concatenate(([ray_length*np.sin(angles)], [ray_length*np.cos(angles)], [np.zeros(num_rays)]), axis=0)
-
-rot = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]])
-offset = np.array([0, 0, 0.3])
-
-while (True):
-	# maxForce = p.readUserDebugParameter(maxForceSlider)
-	# targetVelocity = p.readUserDebugParameter(targetVelocitySlider)
-	# steeringAngle = p.readUserDebugParameter(steeringSlider)
-	maxForce = 10.
-	targetVelocity = -5
-	steeringAngle = 0
-	
+		radius = 3
+		blocks = 49
+		random_environment(blocks, radius)
 
 
-#########---------------START Obstacle Avoidance----------########
+		p.setRealTimeSimulation(useRealTimeSim) # either this
+		p.loadURDF(os.path.join(pybullet_data.getDataPath(),"plane.urdf"))
 
-	position, orientation = p.getBasePositionAndOrientation(car)
+		car = p.loadURDF(os.path.join(pybullet_data.getDataPath(),"racecar/racecar.urdf"))
+		for i in range (p.getNumJoints(car)):
+			print (p.getJointInfo(car,i))
 
-	matrix = p.getMatrixFromQuaternion(orientation)
-	matrix = np.reshape(matrix, (3, 3))
+		inactive_wheels = [5,7]
+		wheels = [2,3]
 
-	src = np.array(position) 
-	src = src + np.matmul(matrix,offset)
+		for wheel in inactive_wheels:
+				p.setJointMotorControl2(car,wheel,p.VELOCITY_CONTROL,targetVelocity=0,force=0)
+			
+		steering = [4,6]
 
-	h = 10
+		targetVelocitySlider = p.addUserDebugParameter("wheelVelocity",-10,10,0)
+		maxForceSlider = p.addUserDebugParameter("maxForce",0,10,10)
+		steeringSlider = p.addUserDebugParameter("steering",-0.5,0.5,0)
 
-	rays_src = np.repeat([src], num_rays, axis=0)
+		ray_length = 2
+		angle_swept = 60
+		step = math.ceil(100*angle_swept/p.MAX_RAY_INTERSECTION_BATCH_SIZE)/100
+		angles = np.arange(-angle_swept/2, angle_swept/2, step) * np.pi / 180 #angle of rotations
+		num_rays = np.shape(angles)[0]
+		rays = np.concatenate(([ray_length*np.sin(angles)], [ray_length*np.cos(angles)], [np.zeros(num_rays)]), axis=0)
 
-	orn = np.matmul(matrix, rot) #rotates unit vector y to -x
+		rot = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]])
+		offset = np.array([0, 0, 0.3])
+		count = 0
+		nowhere_count = 0
+		path = __Path()
+		nowhere = False
 
-	rays_end = np.matmul(orn, rays) # unit vector in direction of minitaur
-	rays_end = (rays_end + src[:, None]).T
-	rays_info = p.rayTestBatch(rays_src.tolist(), rays_end.tolist())
+		while (path.rad < radius + .5):
+			# maxForce = p.readUserDebugParameter(maxForceSlider)
+			# targetVelocity = p.readUserDebugParameter(targetVelocitySlider)
+			# steeringAngle = p.readUserDebugParameter(steeringSlider)
+			maxForce = 10.
+			targetVelocity = -5
+			steeringAngle = 0
+			
 
-	b = np.asarray([int(i[0]) for i in rays_info])
+		#########---------------START Obstacle Avoidance----------########
 
-	for i in range(h-1):
+			position, orientation = p.getBasePositionAndOrientation(car)
 
-		rays = np.concatenate(([ray_length*np.sin(angles)], [ray_length*np.cos(angles)], [np.full((num_rays,), i+1)]), axis=0)
+			matrix = p.getMatrixFromQuaternion(orientation)
+			matrix = np.reshape(matrix, (3, 3))
 
-		rays_end = np.matmul(orn, rays) # unit vector in direction of minitaur
-		rays_end = (rays_end + src[:, None]).T
+			src = np.array(position) 
+			src = src + np.matmul(matrix,offset)
 
-		rays_info = p.rayTestBatch(rays_src.tolist(), rays_end.tolist())
+			path.calcDist(src)
+			h = 10
 
-		b = np.vstack((b, np.asarray([int(i[0]) for i in rays_info])))
+			rays_src = np.repeat([src], num_rays, axis=0)
 
-	nth_ray = find_largest_gap(b)
+			orn = np.matmul(matrix, rot) #rotates unit vector y to -x
 
-	if(nth_ray == None):
-		targetVelocity = 0
-		print("Nowhere")
-	else:
+			rays_end = np.matmul(orn, rays) # unit vector in direction of minitaur
+			rays_end = (rays_end + src[:, None]).T
+			rays_info = p.rayTestBatch(rays_src.tolist(), rays_end.tolist())
 
-		deg = 1.*angle_swept*nth_ray/b.shape[1] - angle_swept/2.
-		print("Rotate {:.1f} degrees".format(deg))
-		if math.fabs(deg)  > 5:
-			targetVelocity = -2.5
-			steeringAngle = np.sign(deg)*.5
+			b = np.asarray([int(i[0]) for i in rays_info])
+
+			for i in range(h-1):
+
+				rays = np.concatenate(([ray_length*np.sin(angles)], [ray_length*np.cos(angles)], [np.full((num_rays,), i+1)]), axis=0)
+
+				rays_end = np.matmul(orn, rays) # unit vector in direction of minitaur
+				rays_end = (rays_end + src[:, None]).T
+
+				rays_info = p.rayTestBatch(rays_src.tolist(), rays_end.tolist())
+
+				b = np.vstack((b, np.asarray([int(i[0]) for i in rays_info])))
+
+			nth_ray = find_largest_gap(b)
+
+			if(nth_ray == None):
+				nowhere = True
+				targetVelocity = 0
+				print("Nowhere")
+				nowhere_count += 1
+				if nowhere_count > 20:
+					break
+			else:
+				nowhere_count = 0
+				deg = 1.*angle_swept*nth_ray/b.shape[1] - angle_swept/2.
+				print("Rotate {:.1f} degrees".format(deg))
+				if math.fabs(deg)  > 5:
+					targetVelocity = -4
+					steeringAngle = np.sign(deg)*.7
 
 
-#########---------------END Obstacle Avoidance----------########	
+		#########---------------END Obstacle Avoidance----------########	
 
-	
-	for wheel in wheels:
-		p.setJointMotorControl2(car,wheel,p.VELOCITY_CONTROL,targetVelocity=targetVelocity,force=maxForce)
+			
+			for wheel in wheels:
+				p.setJointMotorControl2(car,wheel,p.VELOCITY_CONTROL,targetVelocity=targetVelocity,force=maxForce)
+				
+			for steer in steering:
+				p.setJointMotorControl2(car,steer,p.POSITION_CONTROL,targetPosition=steeringAngle)
+
+			if (useRealTimeSim==0):
+				p.stepSimulation()
+			time.sleep(0.01)
+			count += 1
+			
+		writer.writerow( (path.len, path.rad, nowhere, blocks, radius) )
+		# print("Dist Travelled: {}\n radial: {}\n deadend: {}\n \
+		# 	blocks: {}\n radius: {}".format(path.len, path.rad, 
+		# 		nowhere, blocks, radius))
+
+
+	# collision, distance? mag or actual, deadend, time,
+
+
+
+
 		
-	for steer in steering:
-		p.setJointMotorControl2(car,steer,p.POSITION_CONTROL,targetPosition=steeringAngle)
-
-	if (useRealTimeSim==0):
-		p.stepSimulation()
-	time.sleep(0.01)
-
-
-
-
-
-
-	
