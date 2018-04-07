@@ -146,8 +146,8 @@ with open('rc_output.csv', 'w+') as f:
 		cube =p.createCollisionShape(p.GEOM_MESH,fileName="cube.obj",flags=p.GEOM_FORCE_CONCAVE_TRIMESH, meshScale=[1,1,1])
 		orn = p.getQuaternionFromEuler([0,0,0])
 
-		radius = 3
-		blocks = 49
+		radius = 10
+		blocks = 125
 		random_environment(blocks, radius)
 
 
