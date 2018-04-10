@@ -28,15 +28,13 @@ class __Path:
 		if self.curr is not None:
 			prev = self.curr
 			self.curr = pos
+			p.addUserDebugLine(prev, pos, [0,0,0])
 			dist = np.linalg.norm(pos-prev)
 			self.len = self.len + dist
 			self.rad = np.linalg.norm(pos-self.start)
 		else:
 			self.start = pos
 			self.curr = pos
-
-
-
 
 
 class __Data:
@@ -105,6 +103,7 @@ def find_largest_gap(collisions):
 	return (sf[0]+sf[1])/2
 
 
+
 #########---------------END Obstacle Avoidance----------########
 
 #########---------------START Random Obstacles----------########
@@ -124,16 +123,96 @@ def random_environment(blocks, r):
 
 #########---------------END Random Obstacles----------########
 
+
+class __Rays:
+	def __init__(self, ray_length=2, h=10):
+		self.ray_length = ray_length
+		self.angle_swept = 60
+		step = math.ceil(100*self.angle_swept/p.MAX_RAY_INTERSECTION_BATCH_SIZE)/100
+		self.angles = np.arange(-self.angle_swept/2, self.angle_swept/2, step) * np.pi / 180 #angle of rotations
+		self.num_rays = np.shape(self.angles)[0]
+		self.rays = np.concatenate(([ray_length*np.sin(self.angles)], [ray_length*np.cos(self.angles)], [np.zeros(self.num_rays)]), axis=0)
+		self.rot = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]])
+		self.offset = np.array([0, 0, 0.3])
+		self.h = h
+
+
+	def get_rays_data(self, position, orientation, turn=None):
+		ray_length = self.ray_length
+		src = np.array(position)
+		matrix = np.reshape(p.getMatrixFromQuaternion(orientation), (3, 3))
+		src = src + np.matmul(matrix, self.offset)
+
+		rays_src = np.repeat([src], self.num_rays, axis=0)
+
+		orn = np.matmul(matrix, self.rot) #rotates unit vector y to -x
+		if turn is not None:
+			orn = np.matmul(orn, turn)
+
+		rays_end = np.matmul(orn, self.rays) # unit vector in direction of minitaur
+		rays_end = (rays_end + src[:, None]).T
+
+		rays_info = p.rayTestBatch(rays_src.tolist(), rays_end.tolist())
+
+		b = np.asarray([int(i[0]) for i in rays_info])
+
+		for i in range(self.h - 1):
+
+			rays_h = np.concatenate(([ray_length*np.sin(self.angles)], [ray_length*np.cos(self.angles)], [np.full((self.num_rays,), i+1)]), axis=0)
+
+			rays_end = np.matmul(orn, rays_h) # unit vector in direction of minitaur
+			rays_end = (rays_end + src[:, None]).T
+
+			rays_info = p.rayTestBatch(rays_src.tolist(), rays_end.tolist())
+
+			b = np.vstack((b, np.asarray([int(i[0]) for i in rays_info])))
+
+		return src, b
+
+	def get_orn(self, orientation, turn):
+		matrix = np.reshape(p.getMatrixFromQuaternion(orientation), (3, 3))
+		orn = np.matmul(matrix, self.rot)
+		a = np.linalg.norm(orn-turn) 
+		print(orn.flatten())
+		print(turn.flatten())
+		print(a)
+		return a > 0.1
+
+
+	def turn_head(self, position, orientation):
+		x = 90
+		rang = np.arange(-x, x, 10)
+		for deg in rang:
+			theta = deg*np.pi/180
+			cos = np.cos(theta)
+			sin = np.sin(theta)
+			rotation = np.array([[cos, -sin, 0], [sin, cos, 0], [0, 0, 0]])
+			_, b = self.get_rays_data(position, orientation, rotation)
+			nth_ray = find_largest_gap(b)
+
+			if(nth_ray == None):
+				continue
+			else:
+				angle_swept = self.angle_swept
+				nowhere_count = 0
+				nth = 1.*angle_swept*nth_ray/b.shape[1] - angle_swept/2.
+				cos1 = np.cos((deg+nth)*np.pi/180)
+				sin1 = np.sin((deg+nth)*np.pi/180)
+				turn = np.array([[cos1, -sin1, 0], [sin1, cos1, 0], [0, 0, 0]])
+				return deg + nth, turn
+		return None, None
+
+
 with open('rc_output.csv', 'w+') as f:
 	writer = csv.writer(f, quoting=csv.QUOTE_NONNUMERIC)
-	writer.writerow( ('Distance Travelled', 'Radial DIstance', 'Deadend', 'Blocks', 'Radius') )
+	writer.writerow( ('Distance Travelled', 'Radial Distance', 'Deadend', 'Blocks', 'Radius') )
 
 	while True:
 
 		cid = p.connect(p.SHARED_MEMORY)
 		if (cid<0):
-			# p.connect(p.GUI)
-			p.connect(p.DIRECT)
+			p.connect(p.GUI)
+			# p.connect(p.DIRECT)
 
 		p.setPhysicsEngineParameter(numSolverIterations=5, fixedTimeStep=1., 
 									numSubSteps=50)
@@ -146,108 +225,84 @@ with open('rc_output.csv', 'w+') as f:
 		cube =p.createCollisionShape(p.GEOM_MESH,fileName=os.path.join(pybullet_data.getDataPath(),"cube.obj"),flags=p.GEOM_FORCE_CONCAVE_TRIMESH, meshScale=[1,1,1])
 		orn = p.getQuaternionFromEuler([0,0,0])
 
-		radius = 10
-		blocks = 125
+		blocks, radius = 125, 10
 		random_environment(blocks, radius)
-
 
 		p.setRealTimeSimulation(useRealTimeSim) # either this
 		p.loadURDF(os.path.join(pybullet_data.getDataPath(),"plane.urdf"))
 
 		car = p.loadURDF(os.path.join(pybullet_data.getDataPath(),"racecar/racecar.urdf"))
-		# for i in range (p.getNumJoints(car)):
-		# 	print (p.getJointInfo(car,i))
 
 		inactive_wheels = [5,7]
 		wheels = [2,3]
-
 		for wheel in inactive_wheels:
 				p.setJointMotorControl2(car,wheel,p.VELOCITY_CONTROL,targetVelocity=0,force=0)
-			
 		steering = [4,6]
 
-		targetVelocitySlider = p.addUserDebugParameter("wheelVelocity",-10,10,0)
-		maxForceSlider = p.addUserDebugParameter("maxForce",0,10,10)
-		steeringSlider = p.addUserDebugParameter("steering",-0.5,0.5,0)
+		rays = __Rays()
 
-		ray_length = 2
-		angle_swept = 60
-		step = math.ceil(100*angle_swept/p.MAX_RAY_INTERSECTION_BATCH_SIZE)/100
-		angles = np.arange(-angle_swept/2, angle_swept/2, step) * np.pi / 180 #angle of rotations
-		num_rays = np.shape(angles)[0]
-		rays = np.concatenate(([ray_length*np.sin(angles)], [ray_length*np.cos(angles)], [np.zeros(num_rays)]), axis=0)
-
-		rot = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 0]])
-		offset = np.array([0, 0, 0.3])
-		count = 0
 		nowhere_count = 0
 		path = __Path()
 		nowhere = False
 
-		while (path.rad < radius + .5):
-			# maxForce = p.readUserDebugParameter(maxForceSlider)
-			# targetVelocity = p.readUserDebugParameter(targetVelocitySlider)
-			# steeringAngle = p.readUserDebugParameter(steeringSlider)
-			maxForce = 10.
-			targetVelocity = -5
-			steeringAngle = 0
+		while (path.rad < radius + .5 or count > 1000):
+
+			maxForce, targetVelocity, steeringAngle = 10., -3, 0
 			
-
-		#########---------------START Obstacle Avoidance----------########
-
-			position, orientation = p.getBasePositionAndOrientation(car)
-
-			matrix = p.getMatrixFromQuaternion(orientation)
-			matrix = np.reshape(matrix, (3, 3))
-
-			src = np.array(position) 
-			src = src + np.matmul(matrix,offset)
+			pos, orn = p.getBasePositionAndOrientation(car)
+			src, b = rays.get_rays_data(pos, orn)
 
 			path.calcDist(src)
-			h = 10
-
-			rays_src = np.repeat([src], num_rays, axis=0)
-
-			orn = np.matmul(matrix, rot) #rotates unit vector y to -x
-
-			rays_end = np.matmul(orn, rays) # unit vector in direction of minitaur
-			rays_end = (rays_end + src[:, None]).T
-			rays_info = p.rayTestBatch(rays_src.tolist(), rays_end.tolist())
-
-			b = np.asarray([int(i[0]) for i in rays_info])
-
-			for i in range(h-1):
-
-				rays = np.concatenate(([ray_length*np.sin(angles)], [ray_length*np.cos(angles)], [np.full((num_rays,), i+1)]), axis=0)
-
-				rays_end = np.matmul(orn, rays) # unit vector in direction of minitaur
-				rays_end = (rays_end + src[:, None]).T
-
-				rays_info = p.rayTestBatch(rays_src.tolist(), rays_end.tolist())
-
-				b = np.vstack((b, np.asarray([int(i[0]) for i in rays_info])))
 
 			nth_ray = find_largest_gap(b)
 
 			if(nth_ray == None):
-				nowhere = True
-				targetVelocity = 0
-				# print("Nowhere")
-				nowhere_count += 1
-				if nowhere_count > 20:
+				print("Looking by turning head")
+				deg, turn = rays.turn_head(pos, orn)
+				if turn is None:
+					nowhere = True
 					break
+				else:
+					print("Turning head {} degrees".format(deg))
+					matrix = np.reshape(p.getMatrixFromQuaternion(orn), (3, 3))
+					orn = np.matmul(matrix, rays.rot)
+					turn = np.matmul(orn, turn)
+					max_a = np.inf
+					while(True):
+						print("Turning body to {} degrees".format(deg))
+						pos, orient = p.getBasePositionAndOrientation(car)
+						src, b = rays.get_rays_data(pos, orient)
+						path.calcDist(src)
+						a = rays.get_orn(orient, turn)
+						
+						if a < max_a and a > 0.05:
+							max_a = a
+							targetVelocity = -2
+							steeringAngle = np.sign(deg)
+
+							for wheel in wheels:
+								p.setJointMotorControl2(car,wheel,p.VELOCITY_CONTROL,targetVelocity=targetVelocity,force=maxForce)
+								
+							for steer in steering:
+								p.setJointMotorControl2(car,steer,p.POSITION_CONTROL,targetPosition=steeringAngle)
+
+							if (useRealTimeSim==0):
+								p.stepSimulation()
+							time.sleep(0.1)
+						else:
+							print("Done turning")
+							break
+
 			else:
+				print("Walking")
+				angle_swept = rays.angle_swept
 				nowhere_count = 0
 				deg = 1.*angle_swept*nth_ray/b.shape[1] - angle_swept/2.
 				# print("Rotate {:.1f} degrees".format(deg))
 				if math.fabs(deg)  > 5:
-					targetVelocity = -4
-					steeringAngle = np.sign(deg)*.7
+					targetVelocity = -3
+					steeringAngle = np.sign(deg)
 
-
-		#########---------------END Obstacle Avoidance----------########	
-
-			
 			for wheel in wheels:
 				p.setJointMotorControl2(car,wheel,p.VELOCITY_CONTROL,targetVelocity=targetVelocity,force=maxForce)
 				
@@ -256,16 +311,15 @@ with open('rc_output.csv', 'w+') as f:
 
 			if (useRealTimeSim==0):
 				p.stepSimulation()
-			time.sleep(0.01)
-			count += 1
+			time.sleep(0.1)
+			count+=1
 			
-		writer.writerow( (path.len, path.rad, nowhere, blocks, radius) )
-		# print("Dist Travelled: {}\n radial: {}\n deadend: {}\n \
-		# 	blocks: {}\n radius: {}".format(path.len, path.rad, 
-		# 		nowhere, blocks, radius))
+		# writer.writerow( (path.len, path.rad, nowhere, blocks, radius) )
+		print("Dist Travelled: {}\n radial: {}\n deadend: {}\n \
+			blocks: {}\n radius: {}".format(path.len, path.rad, 
+				nowhere, blocks, radius))
+		p.disconnect()
 
-
-	# collision, distance? mag or actual, deadend, time,
 
 
 
