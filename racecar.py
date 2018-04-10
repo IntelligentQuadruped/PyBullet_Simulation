@@ -194,7 +194,6 @@ class __Rays:
 				continue
 			else:
 				angle_swept = self.angle_swept
-				nowhere_count = 0
 				nth = 1.*angle_swept*nth_ray/b.shape[1] - angle_swept/2.
 				cos1 = np.cos((deg+nth)*np.pi/180)
 				sin1 = np.sin((deg+nth)*np.pi/180)
@@ -205,7 +204,7 @@ class __Rays:
 
 with open('rc_output.csv', 'w+') as f:
 	writer = csv.writer(f, quoting=csv.QUOTE_NONNUMERIC)
-	writer.writerow( ('Distance Travelled', 'Radial Distance', 'Deadend', 'Blocks', 'Radius') )
+	writer.writerow( ('Distance Travelled', 'Radial Distance', 'Deadend', 'Blocks', 'Radius', 'Timeout') )
 
 	while True:
 
@@ -241,11 +240,12 @@ with open('rc_output.csv', 'w+') as f:
 
 		rays = __Rays()
 
-		nowhere_count = 0
 		path = __Path()
 		nowhere = False
+		count = 0
+		timout = False
 
-		while (path.rad < radius + .5 or count > 1000):
+		while (path.rad < radius + .5):
 
 			maxForce, targetVelocity, steeringAngle = 10., -3, 0
 			
@@ -296,7 +296,6 @@ with open('rc_output.csv', 'w+') as f:
 			else:
 				print("Walking")
 				angle_swept = rays.angle_swept
-				nowhere_count = 0
 				deg = 1.*angle_swept*nth_ray/b.shape[1] - angle_swept/2.
 				# print("Rotate {:.1f} degrees".format(deg))
 				if math.fabs(deg)  > 5:
@@ -313,11 +312,13 @@ with open('rc_output.csv', 'w+') as f:
 				p.stepSimulation()
 			time.sleep(0.1)
 			count+=1
+			if (count > 1000):
+				timeout = True
 			
-		# writer.writerow( (path.len, path.rad, nowhere, blocks, radius) )
+		# writer.writerow( (path.len, path.rad, nowhere, blocks, radius, timeout) )
 		print("Dist Travelled: {}\n radial: {}\n deadend: {}\n \
-			blocks: {}\n radius: {}".format(path.len, path.rad, 
-				nowhere, blocks, radius))
+			blocks: {}\n radius: {} timemout: {}".format(path.len, path.rad, 
+				nowhere, blocks, radius, timeout))
 		p.disconnect()
 
 
