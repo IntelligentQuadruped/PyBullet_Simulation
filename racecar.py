@@ -182,6 +182,7 @@ class __Rays:
 	def turn_head(self, position, orientation):
 		x = 90
 		rang = np.arange(-x, x, 10)
+
 		for deg in rang:
 			theta = deg*np.pi/180
 			cos = np.cos(theta)
@@ -243,7 +244,7 @@ with open('rc_output.csv', 'w+') as f:
 		path = __Path()
 		nowhere = False
 		count = 0
-		timout = False
+		timeout = False
 
 		while (path.rad < radius + .5):
 
@@ -289,6 +290,10 @@ with open('rc_output.csv', 'w+') as f:
 							if (useRealTimeSim==0):
 								p.stepSimulation()
 							time.sleep(0.1)
+							count+=1
+							if (count > 500):
+								timeout = True
+								break
 						else:
 							print("Done turning")
 							break
@@ -312,8 +317,10 @@ with open('rc_output.csv', 'w+') as f:
 				p.stepSimulation()
 			time.sleep(0.1)
 			count+=1
-			if (count > 1000):
+
+			if (count > 500):
 				timeout = True
+				break
 			
 		# writer.writerow( (path.len, path.rad, nowhere, blocks, radius, timeout) )
 		print("Dist Travelled: {}\n radial: {}\n deadend: {}\n \
