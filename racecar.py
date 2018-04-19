@@ -82,7 +82,8 @@ def __addNextRow(row, start, finish, data):
 				f = d
 			if data.compareGap(s, f):
 				__addNextRow(row+1, s, f, data)
-		return
+		
+	return
 
  
 def find_largest_gap(collisions):
@@ -205,14 +206,17 @@ class __Rays:
 
 with open('rc_output.csv', 'w+') as f:
 	writer = csv.writer(f, quoting=csv.QUOTE_NONNUMERIC)
-	writer.writerow( ('Distance Travelled', 'Radial Distance', 'Deadend', 'Blocks', 'Radius', 'Timeout') )
+	if (os.stat('rc_output.csv').st_size == 0):
+		print("Creating new output file.")
+		writer.writerow( ('Distance Travelled', 'Radial Distance', 'Deadend', 'Turned Head', 'Blocks', 'Radius', 'Timeout') )
 
-	while True:
+	sim_cnt = 0
+	while sim_cnt < 10000:
 
 		cid = p.connect(p.SHARED_MEMORY)
 		if (cid<0):
-			p.connect(p.GUI)
-			# p.connect(p.DIRECT)
+			# p.connect(p.GUI)
+			p.connect(p.DIRECT)
 
 		p.setPhysicsEngineParameter(numSolverIterations=5, fixedTimeStep=1., 
 									numSubSteps=50)
@@ -225,7 +229,8 @@ with open('rc_output.csv', 'w+') as f:
 		cube =p.createCollisionShape(p.GEOM_MESH,fileName=os.path.join(pybullet_data.getDataPath(),"cube.obj"),flags=p.GEOM_FORCE_CONCAVE_TRIMESH, meshScale=[1,1,1])
 		orn = p.getQuaternionFromEuler([0,0,0])
 
-		blocks, radius = 125, 10
+		radius = np.random.randint(3, 12)
+		blocks = int(((radius*2)**2)/2)
 		random_environment(blocks, radius)
 
 		p.setRealTimeSimulation(useRealTimeSim) # either this
@@ -245,8 +250,9 @@ with open('rc_output.csv', 'w+') as f:
 		nowhere = False
 		count = 0
 		timeout = False
+		turned_head = 0
 
-		while (path.rad < radius + .5):
+		while (path.rad < radius*np.sqrt(2) + .5):
 
 			maxForce, targetVelocity, steeringAngle = 10., -3, 0
 			
@@ -259,6 +265,7 @@ with open('rc_output.csv', 'w+') as f:
 
 			if(nth_ray == None):
 				print("Looking by turning head")
+				turned_head += 1
 				deg, turn = rays.turn_head(pos, orn)
 				if turn is None:
 					nowhere = True
@@ -307,6 +314,10 @@ with open('rc_output.csv', 'w+') as f:
 					targetVelocity = -3
 					steeringAngle = np.sign(deg)
 
+
+			if nowhere:
+				break
+
 			for wheel in wheels:
 				p.setJointMotorControl2(car,wheel,p.VELOCITY_CONTROL,targetVelocity=targetVelocity,force=maxForce)
 				
@@ -322,10 +333,13 @@ with open('rc_output.csv', 'w+') as f:
 				timeout = True
 				break
 			
-		# writer.writerow( (path.len, path.rad, nowhere, blocks, radius, timeout) )
-		print("Dist Travelled: {}\n radial: {}\n deadend: {}\n \
-			blocks: {}\n radius: {} timemout: {}".format(path.len, path.rad, 
-				nowhere, blocks, radius, timeout))
+		writer.writerow( (path.len, path.rad, nowhere, turned_head, blocks, radius, timeout) )
+		# print("Dist Travelled: {}\n radial: {}\n deadend: {}\n \
+			# attempted: {}\n blocks: {}\n radius: {}\n timemout: {}".format(path.len, path.rad, 
+			# 	nowhere, turned_head, blocks, radius, timeout))
+		sim_cnt += 1
+		sys.stdout.write("\rSimulation # %d" %(sim_cnt))
+		sys.stdout.flush()
 		p.disconnect()
 
 
