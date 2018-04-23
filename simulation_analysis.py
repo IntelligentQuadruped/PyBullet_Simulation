@@ -22,6 +22,8 @@ for i,df in enumerate(data):
     series.append([s_frac,f_frac])
     index.append('r{}_b{}'.format(radius,blocks))
 
+    
+
 
 data = pd.DataFrame(series,columns=['Escaped','Deadend'],index = index)
 print(data.head())
@@ -30,7 +32,7 @@ plt.figure()
 data.plot(kind='bar')
 plt.xlabel('Outcome')
 plt.ylabel('Probability')
-plt.title('Labyrinth Radius {}, Number Obstacles: {}'.format(radius,blocks))
+plt.title('Simulation Outcomes: r = Labyrinth radius, b = Number of Obstacles')
 
 plt.show()
 
